@@ -28,9 +28,15 @@ import           Playground.Types    (KnownCurrency (..))
 import           Prelude             (Semigroup (..))
 import           Text.Printf         (printf)
 
+-- the error which is used - PlutusTx.Prelude.error
+-- mkValidator _ _ _ = error () - validator which fails every time
+-- CHECK, why is it only grab transaction which is validated? why we can give but not grab?
+-- there is no way to retrieve utxos from script address
 {-# INLINABLE mkValidator #-}
 mkValidator :: Data -> Data -> Data -> ()
-mkValidator _ _ _ = traceError "NO WAY!"
+mkValidator _ r _
+    | r == I 42 = ()
+    | otherwise = traceError "wrong args"
 
 validator :: Validator
 validator = mkValidatorScript $$(PlutusTx.compile [|| mkValidator ||])
@@ -44,7 +50,8 @@ scrAddress = ScriptAddress valHash
 type GiftSchema =
     BlockchainActions
         .\/ Endpoint "give" Integer
-        .\/ Endpoint "grab" ()
+        -- validator works only when we grab?
+        .\/ Endpoint "grab" Integer
 
 give :: (HasBlockchainActions s, AsContractError e) => Integer -> Contract w s e ()
 give amount = do
@@ -53,14 +60,16 @@ give amount = do
     void $ awaitTxConfirmed $ txId ledgerTx
     logInfo @String $ printf "made a gift of %d lovelace" amount
 
-grab :: forall w s e. (HasBlockchainActions s, AsContractError e) => Contract w s e ()
-grab = do
+grab :: forall w s e. (HasBlockchainActions s, AsContractError e) => Integer -> Contract w s e ()
+-- the amount in this case is not connected in any way with the amount we will grab
+-- it's just some arbitrary info we are sending to the script
+grab amount = do
     utxos <- utxoAt scrAddress
     let orefs   = fst <$> Map.toList utxos
         lookups = Constraints.unspentOutputs utxos      <>
                   Constraints.otherScript validator
         tx :: TxConstraints Void Void
-        tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ I 17 | oref <- orefs]
+        tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ I amount | oref <- orefs]
     ledgerTx <- submitTxConstraintsWith @Void lookups tx
     void $ awaitTxConfirmed $ txId ledgerTx
     logInfo @String $ "collected gifts"
@@ -69,7 +78,7 @@ endpoints :: Contract () GiftSchema Text ()
 endpoints = (give' `select` grab') >> endpoints
   where
     give' = endpoint @"give" >>= give
-    grab' = endpoint @"grab" >>  grab
+    grab' = endpoint @"grab" >>= grab
 
 mkSchemaDefinitions ''GiftSchema
 
