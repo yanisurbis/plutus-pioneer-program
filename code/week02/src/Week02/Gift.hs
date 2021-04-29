@@ -27,11 +27,21 @@ import           Playground.Types    (KnownCurrency (..))
 import           Prelude             (Semigroup (..))
 import           Text.Printf         (printf)
 
+-- inlinable pragma
+-- code of this function could be inlined
 {-# INLINABLE mkValidator #-}
+-- Data = base type for redeemer, datum & etc
 mkValidator :: Data -> Data -> Data -> ()
+-- any transaction will be able to spend utxos
+-- which are assigned to this script address
 mkValidator _ _ _ = ()
 
 validator :: Validator
+-- haskell macros
+-- $$ = splice
+-- [|| = oxford brackets, it will return source code?
+-- then code will be compiled
+-- then $$ put code into validator script
 validator = mkValidatorScript $$(PlutusTx.compile [|| mkValidator ||])
 
 valHash :: Ledger.ValidatorHash
@@ -47,6 +57,9 @@ type GiftSchema =
 
 give :: (HasBlockchainActions s, AsContractError e) => Integer -> Contract w s e ()
 give amount = do
+    -- CHECK, why do we pass datum at all? lars says that datum is ignored in this case
+    -- DISCUSS, Constr is a very weird contructor, basically in this case it means Map
+    -- https://playground.plutus.iohkdev.io/tutorial/haddock/plutus-tx/html/Language-PlutusTx-Data.html
     let tx = mustPayToOtherScript valHash (Datum $ Constr 0 []) $ Ada.lovelaceValueOf amount
     ledgerTx <- submitTx tx
     void $ awaitTxConfirmed $ txId ledgerTx
@@ -57,8 +70,13 @@ grab = do
     utxos <- utxoAt scrAddress
     let orefs   = fst <$> Map.toList utxos
         lookups = Constraints.unspentOutputs utxos      <>
+                -- why is it called otherScript?
+                -- https://alpha.marlowe.iohkdev.io/doc/haddock/plutus-ledger/html/Ledger-Constraints-OffChain.html
                   Constraints.otherScript validator
         tx :: TxConstraints Void Void
+        -- CHECK, why is it 17?! Lars says it's random
+        -- we want to consume every found unspent outputs
+        -- different ways to create constrains https://playground.plutus.iohkdev.io/tutorial/haddock/doc-index-M.html
         tx      = mconcat [mustSpendScriptOutput oref $ Redeemer $ I 17 | oref <- orefs]
     ledgerTx <- submitTxConstraintsWith @Void lookups tx
     void $ awaitTxConfirmed $ txId ledgerTx
