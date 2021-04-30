@@ -33,7 +33,8 @@ import           Text.Printf          (printf)
 -- This should validate if and only if the two Booleans in the redeemer are equal!
 mkValidator :: () -> (Bool, Bool) -> ValidatorCtx -> Bool
 -- CHECK, traceIfFalse doesn't print anything in logs
-mkValidator _ (r1, r2) _ = traceIfFalse "values are not equal" r1 == r2
+-- lol, without $ it's completely different statement
+mkValidator _ (r1, r2) _ = traceIfFalse "values are not equal" $ r1 == r2
 
 data Typed
 instance Scripts.ScriptType Typed where
