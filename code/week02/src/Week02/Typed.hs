@@ -63,6 +63,8 @@ type GiftSchema =
 
 give :: (HasBlockchainActions s, AsContractError e) => Integer -> Contract w s e ()
 give amount = do
+    -- what is the difference between mustPayToOtherScript and mustPayToTheScript
+    -- () in this case is datum
     let tx = mustPayToTheScript () $ Ada.lovelaceValueOf amount
     ledgerTx <- submitTxConstraints inst tx
     void $ awaitTxConfirmed $ txId ledgerTx

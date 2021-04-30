@@ -31,6 +31,7 @@ import           Text.Printf         (printf)
 -- code of this function could be inlined
 {-# INLINABLE mkValidator #-}
 -- Data = base type for redeemer, datum & etc
+-- conversion is done by PlutusTx.IsData (toData, fromData)
 mkValidator :: Data -> Data -> Data -> ()
 -- any transaction will be able to spend utxos
 -- which are assigned to this script address
